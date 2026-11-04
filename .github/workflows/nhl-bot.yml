@@ -94,6 +94,8 @@ jobs:
         run: |
           mkdir -p site
           if [ -f output/dashboard.html ]; then cp output/dashboard.html site/index.html; else echo "<p>No dashboard yet.</p>" > site/index.html; fi
+          # CSVs for the Google Sheet (same format as the NBA/football bots): .../csv/live.csv etc.
+          python -m propsbot export --sheet --out site/csv || echo "CSV export failed"
 
       - uses: actions/upload-pages-artifact@v3
         if: always()

@@ -246,6 +246,12 @@ def cmd_report(s: BotSettings) -> int:
 
 
 def cmd_export(args: argparse.Namespace, s: BotSettings, cfg: Settings) -> int:
+    if args.sheet:
+        from .sheet_export import write_sheet_csvs
+
+        for path in write_sheet_csvs(s, args.out or cfg.output_dir / "csv"):
+            print(f"Wrote {path}")
+        return 0
     out = args.out or cfg.output_dir / "ledgers"
     out.mkdir(parents=True, exist_ok=True)
     for name, ledger in open_ledgers(s).items():

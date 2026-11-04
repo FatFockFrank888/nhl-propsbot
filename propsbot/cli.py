@@ -85,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     ex = sub.add_parser("export", help="write all ledgers to CSV (opens in Excel)")
     ex.add_argument("--out", type=Path, help="output folder (default: output/ledgers)")
+    ex.add_argument("--sheet", action="store_true",
+                    help="write Google-Sheet CSVs (live.csv, alla_spel.csv, sammanfattning.csv) like the other bots")
 
     kp = sub.add_parser("kambi-probe", help="list NHL events and shot criteria per Kambi book")
     kp.add_argument("--save", action="store_true", help="save raw event JSON to data/diagnos")
