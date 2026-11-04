@@ -106,7 +106,9 @@ def write_sheet_csvs(s: BotSettings, out: Path) -> list[Path]:
     by_time = lambda b: b.get("created") or ""  # noqa: E731
     live = sorted(ledgers["live"].bets, key=by_time, reverse=True)
     everything = sorted((b for l in ledgers.values() for b in l.bets), key=by_time, reverse=True)
-    paths = [out / "live.csv", out / "alla_spel.csv", out / "sammanfattning.csv"]
+    # Distinct names: the sheet's Apps Script finds its own tabs by '/live.csv', '/alla_spel.csv',
+    # '/sammanfattning.csv' in A1, so NHL files must never end in those exact names.
+    paths = [out / "nhl_live.csv", out / "nhl.csv", out / "nhl_sammanfattning.csv"]
     _write(paths[0], BET_COLUMNS, [bet_row(b) for b in live])
     _write(paths[1], BET_COLUMNS, [bet_row(b) for b in everything])
     _write(paths[2], SUMMARY_COLUMNS, [summary_row(n, l.bets, now) for n, l in ledgers.items()])

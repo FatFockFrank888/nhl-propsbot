@@ -23,6 +23,10 @@ def test_sheet_csvs_match_other_bots(tmp_path):
     led.save()
 
     live, alla, summary = write_sheet_csvs(s, tmp_path / "csv")
+    # Must never collide with the sheet script's tab detection ('/live.csv', '/alla_spel.csv', ...).
+    for p in (live, alla, summary):
+        assert ("/" + p.name) not in ("/live.csv", "/alla_spel.csv", "/sammanfattning.csv", "/nba.csv",
+                                      "/fotboll.csv", "/parlays.csv")
     lines = live.read_text(encoding="utf-8").splitlines()
     assert lines[0] == LIVE_HEADER
     rows = list(csv.reader(lines[1:]))
