@@ -20,7 +20,8 @@ BET_COLUMNS = ["Bokförd", "Sport", "Typ", "Avspark", "Match", "Spelare", "Markn
 SUMMARY_COLUMNS = ["Sport", "Typ", "Spel", "Avgjorda", "Vunna", "Träff %", "Insats (u)", "Resultat (u)",
                    "ROI %", "Snitt-CLV %", "Öppna", "Uppdaterad (UTC)"]
 
-TYPE_LABEL = {"live": "Live", "bokforing": "Bokföring", "skugga": "Skugga", "modelltest": "Modelltest"}
+# "Spel" = the data ledger's real-rule bets, as the other bots and the sheet's Översikt formulas expect.
+TYPE_LABEL = {"live": "Live", "bokforing": "Spel", "skugga": "Skugga", "modelltest": "Modelltest"}
 SIDE_LABEL = {"over": "Över", "under": "Under"}
 STATUS_LABEL = {"won": "vunnen", "lost": "förlorad", "push": "push", "void": "struken", "open": "öppen"}
 
