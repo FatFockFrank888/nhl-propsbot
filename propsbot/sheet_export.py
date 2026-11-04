@@ -21,8 +21,27 @@ SUMMARY_COLUMNS = ["Sport", "Typ", "Spel", "Avgjorda", "Vunna", "Träff %", "Ins
                    "ROI %", "Snitt-CLV %", "Öppna", "Uppdaterad (UTC)"]
 
 TYPE_LABEL = {"live": "Live", "bokforing": "Bokföring", "skugga": "Skugga", "modelltest": "Modelltest"}
-SIDE_LABEL = {"over": "över", "under": "under"}
-OUTCOME_LABEL = {"won": "vunnen", "lost": "förlorad", "push": "push", "void": "struken", "open": ""}
+SIDE_LABEL = {"over": "Över", "under": "Under"}
+STATUS_LABEL = {"won": "vunnen", "lost": "förlorad", "push": "push", "void": "struken", "open": "öppen"}
+
+TEAM_NAMES = {
+    "ANA": "Anaheim Ducks", "BOS": "Boston Bruins", "BUF": "Buffalo Sabres", "CAR": "Carolina Hurricanes",
+    "CBJ": "Columbus Blue Jackets", "CGY": "Calgary Flames", "CHI": "Chicago Blackhawks", "COL": "Colorado Avalanche",
+    "DAL": "Dallas Stars", "DET": "Detroit Red Wings", "EDM": "Edmonton Oilers", "FLA": "Florida Panthers",
+    "LAK": "Los Angeles Kings", "MIN": "Minnesota Wild", "MTL": "Montréal Canadiens", "NJD": "New Jersey Devils",
+    "NSH": "Nashville Predators", "NYI": "New York Islanders", "NYR": "New York Rangers", "OTT": "Ottawa Senators",
+    "PHI": "Philadelphia Flyers", "PIT": "Pittsburgh Penguins", "SEA": "Seattle Kraken", "SJS": "San José Sharks",
+    "STL": "St. Louis Blues", "TBL": "Tampa Bay Lightning", "TOR": "Toronto Maple Leafs", "UTA": "Utah Mammoth",
+    "VAN": "Vancouver Canucks", "VGK": "Vegas Golden Knights", "WPG": "Winnipeg Jets", "WSH": "Washington Capitals",
+}
+
+
+def match_label(game: str) -> str:
+    """'OTT@BUF' -> 'Buffalo Sabres – Ottawa Senators' (home – away, like the other bots)."""
+    if "@" not in game:
+        return game
+    away, home = game.split("@", 1)
+    return f"{TEAM_NAMES.get(home, home)} – {TEAM_NAMES.get(away, away)}"
 
 
 def _time(iso: str | None) -> str:
@@ -38,15 +57,23 @@ def _num(x: Any, digits: int) -> str:
     return "" if x is None else f"{x:.{digits}f}"
 
 
+def _plain(x: Any) -> str:
+    """Numbers like the other bots' CSVs: 1.81, 6.5, 10.0 (no forced padding)."""
+    if x is None:
+        return ""
+    return repr(float(round(x, 4)))
+
+
 def bet_row(b: dict[str, Any]) -> list[str]:
     settled = b["status"] != "open"
     return [
         _time(b.get("created")), "NHL", TYPE_LABEL.get(b["ledger"], b["ledger"]), _time(b.get("start")),
-        b.get("game", ""), b["player"], "Skott på mål", SIDE_LABEL.get(b["side"], b["side"]), f"{b['line']:g}",
-        b["book"], _num(b.get("odds"), 2), _num(b.get("close_odds"), 2),
+        match_label(b.get("game", "")), b["player"], "Skott på mål", SIDE_LABEL.get(b["side"], b["side"]),
+        _plain(b["line"]), b["book"], _plain(b.get("odds")), _plain(b.get("close_odds")),
         _num(None if b.get("clv") is None else b["clv"] * 100, 1), _num(b.get("p_fair"), 4), _num(b.get("edge"), 4),
-        str(b["units"]), "avgjord" if settled else "öppen", OUTCOME_LABEL.get(b["status"], b["status"]),
-        _num(b.get("profit_units"), 2) if settled else "",
+        _plain(b["units"]), STATUS_LABEL.get(b["status"], b["status"]),
+        _plain(b.get("result_sog")) if settled and b.get("result_sog") is not None else "",
+        _num(b.get("profit_units"), 1) if settled else "",
     ]
 
 
@@ -59,7 +86,7 @@ def summary_row(name: str, bets: list[dict[str, Any]], now: str) -> list[str]:
     clvs = [b["clv"] for b in bets if b.get("clv") is not None]
     return [
         "NHL", TYPE_LABEL.get(name, name), str(len(bets)), str(len(done)), str(won),
-        _num(100 * won / decisive, 1) if decisive else "", str(staked), _num(profit, 2),
+        _num(100 * won / decisive, 1) if decisive else "", f"{staked:g}", f"{round(profit, 2):g}",
         _num(100 * profit / staked, 1) if staked else "", _num(100 * sum(clvs) / len(clvs), 1) if clvs else "",
         str(sum(b["status"] == "open" for b in bets)), now,
     ]
