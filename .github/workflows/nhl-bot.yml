@@ -1,0 +1,117 @@
+name: NHL props bot
+
+on:
+  schedule:
+    # Backup only: every run starts the next one itself (see the last step), because GitHub's
+    # schedule is unreliable. These restart the chain if it ever stops.
+    - cron: "3-59/20 * * * *"
+  workflow_dispatch: {}
+
+# Never run two scans at once (they would race on the saved state).
+concurrency:
+  group: nhl-props-bot
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    environment:
+      name: github-pages
+    env:
+      TZ: Europe/Stockholm
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      PINNACLE_API_KEY: ${{ secrets.PINNACLE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Ledgers, line history, budget and dashboard live on the "bot-data" branch.
+      - name: Restore bot state
+        id: restore
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --heads origin bot-data > /dev/null 2>&1; then
+            git fetch --depth=1 origin bot-data
+            git archive FETCH_HEAD | tar -x
+            echo "Restored state from bot-data ($(ls data | wc -l) files)"
+          else
+            echo "First run: no saved state yet"
+          fi
+
+      - name: Restore download cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache
+          key: http-cache-${{ github.run_id }}
+          restore-keys: http-cache-
+
+      - name: Scan, book, settle and notify
+        run: python -m propsbot scan
+
+      - name: Save download cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache
+          key: http-cache-${{ github.run_id }}
+
+      # Only save if the restore worked, so a failed restore can never wipe the ledgers.
+      - name: Save bot state
+        if: always() && steps.restore.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ ! -d data ]; then echo "Nothing to save"; exit 0; fi
+          tmp="$(mktemp -d)"
+          cp -r data "$tmp/"
+          mkdir -p "$tmp/output"
+          if [ -f output/dashboard.html ]; then cp output/dashboard.html "$tmp/output/"; fi
+          cd "$tmp"
+          git init -q -b bot-data
+          git config user.name "nhl-props-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Bot state $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Only the latest state is kept (force push), so the repository does not grow.
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" bot-data:bot-data
+          echo "State saved"
+
+      # Dashboard on GitHub Pages: https://<user>.github.io/<repo>/
+      - name: Prepare dashboard site
+        if: always()
+        run: |
+          mkdir -p site
+          if [ -f output/dashboard.html ]; then cp output/dashboard.html site/index.html; else echo "<p>No dashboard yet.</p>" > site/index.html; fi
+
+      - uses: actions/upload-pages-artifact@v3
+        if: always()
+        with:
+          path: site
+
+      - uses: actions/deploy-pages@v4
+        if: always()
+        continue-on-error: true
+
+      # Start the next scan: every ~10 min from 14:00 to 03:59 UTC (props posted + games),
+      # hourly the rest of the day (settling and the morning recap).
+      - name: Start next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          H=$(date -u +%H)
+          if [ "$H" -ge 4 ] && [ "$H" -lt 14 ]; then WAIT=3300; else WAIT=480; fi
+          sleep $WAIT
+          gh workflow run nhl-bot.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
