@@ -108,8 +108,10 @@ jobs:
 
       # Start the next scan: every ~10 min from 14:00 to 03:59 UTC (props posted + games),
       # hourly the rest of the day (settling and the morning recap).
+      # Runs after failures too (keeps the bot alive), but not when a run is cancelled.
+      # To stop the bot completely: Actions -> NHL props bot -> "..." -> Disable workflow.
       - name: Start next run
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
